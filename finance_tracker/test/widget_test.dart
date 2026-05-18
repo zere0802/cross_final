@@ -1,30 +1,53 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
-
+import 'package:finance_tracker/features/expenses/data/database/app_database.dart';
+import 'package:finance_tracker/features/expenses/domain/repositories/expense_repository.dart';
+import 'package:finance_tracker/features/expenses/presentation/providers/expense_provider.dart';
 import 'package:finance_tracker/main.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+  testWidgets('Finance Tracker opens home screen', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          repositoryProvider.overrideWithValue(_FakeExpenseRepository()),
+        ],
+        child: const MyApp(),
+      ),
+    );
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
     await tester.pump();
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(find.text('Finance Tracker'), findsAtLeastNWidgets(1));
+    expect(find.byIcon(Icons.add), findsWidgets);
   });
+}
+
+class _FakeExpenseRepository implements ExpenseRepository {
+  @override
+  Future<void> addExpense({
+    required String title,
+    required double amount,
+    required String category,
+  }) async {}
+
+  @override
+  Future<void> deleteExpense(int id) async {}
+
+  @override
+  Future<List<Expense>> getExpenses() async => [];
+
+  @override
+  Future<void> updateExpense({
+    required int id,
+    required String title,
+    required double amount,
+    required String category,
+  }) async {}
 }

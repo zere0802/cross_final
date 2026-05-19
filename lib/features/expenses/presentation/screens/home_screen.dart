@@ -1,10 +1,10 @@
+import 'package:finance_tracker/core/constants/app_categories.dart';
 import 'package:finance_tracker/core/constants/app_routes.dart';
+import 'package:finance_tracker/core/currency_provider.dart';
 import 'package:finance_tracker/features/expenses/data/database/app_database.dart';
 import 'package:finance_tracker/features/expenses/presentation/providers/expense_provider.dart';
-import 'package:finance_tracker/features/expenses/presentation/widgets/expense_card.dart';
 import 'package:finance_tracker/features/expenses/presentation/widgets/summary_card.dart';
 import 'package:finance_tracker/shared/shared_expenses_screen.dart';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -15,200 +15,104 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final expenses = ref.watch(expenseProvider);
-
-    final notifier = ref.read(
-      expenseProvider.notifier,
-    );
-
+    final notifier = ref.read(expenseProvider.notifier);
+    final currency = ref.watch(currencyProvider);
     final total = expenses.fold<double>(
       0,
-      (previous, expense) =>
-          previous + expense.amount,
+      (sum, expense) => sum + expense.amount,
     );
+    final recent = [...expenses]..sort((a, b) => b.date.compareTo(a.date));
 
     return Scaffold(
-      floatingActionButton:
-          FloatingActionButton.extended(
-        onPressed: () =>
-            context.go(AppRoutes.addExpense),
-
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => context.go(AppRoutes.addExpense),
         icon: const Icon(Icons.add),
-
         label: const Text('Add'),
       ),
-
       body: RefreshIndicator(
-        onRefresh: () => ref
-            .read(expenseProvider.notifier)
-            .loadExpenses(),
-
+        onRefresh: () => ref.read(expenseProvider.notifier).loadExpenses(),
         child: CustomScrollView(
           slivers: [
             SliverAppBar.large(
-              title: const Text(
-                'Finance Tracker',
-              ),
-
+              title: const Text('Finance Tracker'),
               actions: [
-
                 IconButton(
                   tooltip: 'Shared Expenses',
-
                   onPressed: () {
                     Navigator.push(
                       context,
-
                       MaterialPageRoute(
-                        builder: (_) =>
-                            const SharedExpensesScreen(),
+                        builder: (_) => const SharedExpensesScreen(),
                       ),
                     );
                   },
-
-                  icon: const Icon(
-                    Icons.cloud_outlined,
-                  ),
+                  icon: const Icon(Icons.cloud_outlined),
                 ),
-
                 IconButton(
                   tooltip: 'Statistics',
-
-                  onPressed: () =>
-                      context.go(
-                    AppRoutes.statistics,
-                  ),
-
-                  icon: const Icon(
-                    Icons.bar_chart_outlined,
-                  ),
+                  onPressed: () => context.go(AppRoutes.statistics),
+                  icon: const Icon(Icons.bar_chart_outlined),
                 ),
-
                 IconButton(
                   tooltip: 'Settings',
-
-                  onPressed: () =>
-                      context.go(
-                    AppRoutes.settings,
-                  ),
-
-                  icon: const Icon(
-                    Icons.settings_outlined,
-                  ),
+                  onPressed: () => context.go(AppRoutes.settings),
+                  icon: const Icon(Icons.settings_outlined),
                 ),
               ],
             ),
-
-            SliverPadding(
-              padding:
-                  const EdgeInsets.fromLTRB(
-                16,
-                8,
-                16,
-                12,
-              ),
-
-              sliver: SliverToBoxAdapter(
-                child: SummaryCard(
-                  total: total,
-                  count: expenses.length,
+            SliverToBoxAdapter(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 700),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 280),
+                      child: notifier.isLoading && expenses.isEmpty
+                          ? const Padding(
+                              padding: EdgeInsets.only(top: 80),
+                              child: Center(child: CircularProgressIndicator()),
+                            )
+                          : Column(
+                              key: ValueKey(expenses.length),
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                SummaryCard(
+                                  total: total,
+                                  count: expenses.length,
+                                ),
+                                const SizedBox(height: 16),
+                                _QuickActions(
+                                  onAdd: () => context.go(AppRoutes.addExpense),
+                                ),
+                                const SizedBox(height: 16),
+                                _CategorySummary(
+                                  expenses: expenses,
+                                  currency: currency,
+                                ),
+                                const SizedBox(height: 16),
+                                _RecentTransactions(
+                                  expenses: recent.take(5).toList(),
+                                  currency: currency,
+                                  onEdit: (expense) => context.go(
+                                    AppRoutes.addExpense,
+                                    extra: expense,
+                                  ),
+                                  onDelete: (expense) =>
+                                      _confirmDelete(context, ref, expense),
+                                ),
+                                const SizedBox(height: 16),
+                                _WeeklySpending(
+                                  expenses: expenses,
+                                  currency: currency,
+                                ),
+                              ],
+                            ),
+                    ),
+                  ),
                 ),
               ),
             ),
-
-            if (notifier.isLoading &&
-                expenses.isEmpty)
-
-              const SliverFillRemaining(
-                child: Center(
-                  child:
-                      CircularProgressIndicator(),
-                ),
-              )
-
-            else if (expenses.isEmpty)
-
-              const SliverFillRemaining(
-                child: _EmptyExpenses(),
-              )
-
-            else
-
-              SliverPadding(
-                padding:
-                    const EdgeInsets.fromLTRB(
-                  16,
-                  4,
-                  16,
-                  96,
-                ),
-
-                sliver: SliverLayoutBuilder(
-                  builder:
-                      (context, constraints) {
-
-                    final width =
-                        constraints
-                            .crossAxisExtent;
-
-                    final columns =
-                        width >= 1000
-                            ? 4
-                            : width >= 680
-                                ? 3
-                                : 2;
-
-                    return SliverGrid(
-                      gridDelegate:
-                          SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount:
-                            columns,
-
-                        crossAxisSpacing:
-                            12,
-
-                        mainAxisSpacing:
-                            12,
-
-                        childAspectRatio:
-                            width < 420
-                                ? 0.75
-                                : 0.9,
-                      ),
-
-                      delegate:
-                          SliverChildBuilderDelegate(
-                        (context, index) {
-
-                          final expense =
-                              expenses[index];
-
-                          return ExpenseCard(
-                            expense: expense,
-
-                            onEdit: () =>
-                                context.go(
-                              AppRoutes
-                                  .addExpense,
-
-                              extra: expense,
-                            ),
-
-                            onDelete: () =>
-                                _confirmDelete(
-                              context,
-                              ref,
-                              expense,
-                            ),
-                          );
-                        },
-
-                        childCount:
-                            expenses.length,
-                      ),
-                    );
-                  },
-                ),
-              ),
           ],
         ),
       ),
@@ -220,42 +124,20 @@ class HomeScreen extends ConsumerWidget {
     WidgetRef ref,
     Expense expense,
   ) async {
-
-    final confirmed =
-        await showDialog<bool>(
+    final confirmed = await showDialog<bool>(
       context: context,
-
       builder: (context) {
-
         return AlertDialog(
-          title: const Text(
-            'Delete expense?',
-          ),
-
-          content: Text(
-            'Remove "${expense.title}" from your expenses?',
-          ),
-
+          title: const Text('Delete expense?'),
+          content: Text('Remove "${expense.title}" from your expenses?'),
           actions: [
-
             TextButton(
-              onPressed: () =>
-                  Navigator.of(context)
-                      .pop(false),
-
-              child: const Text(
-                'Cancel',
-              ),
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
             ),
-
             FilledButton(
-              onPressed: () =>
-                  Navigator.of(context)
-                      .pop(true),
-
-              child: const Text(
-                'Delete',
-              ),
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Delete'),
             ),
           ],
         );
@@ -263,73 +145,475 @@ class HomeScreen extends ConsumerWidget {
     );
 
     if (confirmed == true) {
-
-      await ref
-          .read(expenseProvider.notifier)
-          .deleteExpense(expense.id);
+      await ref.read(expenseProvider.notifier).deleteExpense(expense.id);
     }
   }
 }
 
-class _EmptyExpenses
-    extends StatelessWidget {
+class _QuickActions extends StatelessWidget {
+  const _QuickActions({required this.onAdd});
 
-  const _EmptyExpenses();
+  final VoidCallback onAdd;
 
   @override
   Widget build(BuildContext context) {
+    return _Panel(
+      child: Row(
+        children: [
+          Expanded(
+            child: _ActionButton(
+              icon: Icons.add_card_outlined,
+              label: 'Expense',
+              onTap: onAdd,
+            ),
+          ),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: _ActionButton(icon: Icons.savings_outlined, label: 'Budget'),
+          ),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: _ActionButton(
+              icon: Icons.swap_horiz_outlined,
+              label: 'Transfer',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
-    return Center(
+class _ActionButton extends StatelessWidget {
+  const _ActionButton({required this.icon, required this.label, this.onTap});
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: onTap,
       child: Padding(
-        padding:
-            const EdgeInsets.all(24),
-
+        padding: const EdgeInsets.symmetric(vertical: 10),
         child: Column(
-          mainAxisSize:
-              MainAxisSize.min,
-
           children: [
-
-            Icon(
-              Icons
-                  .account_balance_wallet_outlined,
-
-              size: 56,
-
-              color: Theme.of(context)
-                  .colorScheme
-                  .primary,
-            ),
-
-            const SizedBox(
-              height: 14,
-            ),
-
-            Text(
-              'No expenses yet',
-
-              style: Theme.of(context)
-                  .textTheme
-                  .titleLarge,
-            ),
-
-            const SizedBox(
-              height: 8,
-            ),
-
-            Text(
-              'Tap Add to record your first transaction.',
-
-              textAlign:
-                  TextAlign.center,
-
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium,
-            ),
+            Icon(icon, color: colorScheme.primary),
+            const SizedBox(height: 6),
+            Text(label, style: Theme.of(context).textTheme.labelLarge),
           ],
         ),
       ),
     );
   }
+}
+
+class _CategorySummary extends StatelessWidget {
+  const _CategorySummary({required this.expenses, required this.currency});
+
+  final List<Expense> expenses;
+  final String currency;
+
+  @override
+  Widget build(BuildContext context) {
+    final totals = _totalsByCategory(expenses);
+    final entries = appCategories.take(4).toList();
+
+    return _Panel(
+      title: 'Quick categories',
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final itemWidth = (constraints.maxWidth - 10) / 2;
+
+          return Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: entries.map((category) {
+              final amount =
+                  totals[category.name] ?? _mockAmount(category.name);
+
+              return SizedBox(
+                width: itemWidth,
+                child: _CategoryChip(
+                  category: category,
+                  amount: amount,
+                  currency: currency,
+                  isMock: expenses.isEmpty,
+                ),
+              );
+            }).toList(),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _CategoryChip extends StatelessWidget {
+  const _CategoryChip({
+    required this.category,
+    required this.amount,
+    required this.currency,
+    required this.isMock,
+  });
+
+  final AppCategory category;
+  final double amount;
+  final String currency;
+  final bool isMock;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: category.color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(category.icon, color: category.color),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  category.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  '$currency ${amount.toStringAsFixed(0)}${isMock ? ' plan' : ''}',
+                  style: Theme.of(context).textTheme.labelMedium,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RecentTransactions extends StatelessWidget {
+  const _RecentTransactions({
+    required this.expenses,
+    required this.currency,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final List<Expense> expenses;
+  final String currency;
+  final ValueChanged<Expense> onEdit;
+  final ValueChanged<Expense> onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = expenses.isEmpty ? _mockTransactions() : expenses;
+
+    return _Panel(
+      title: 'Recent transactions',
+      child: Column(
+        children: [
+          for (var i = 0; i < items.length; i++) ...[
+            _TransactionRow(
+              expense: items[i],
+              currency: currency,
+              isMock: expenses.isEmpty,
+              onEdit: () => onEdit(items[i]),
+              onDelete: () => onDelete(items[i]),
+            ),
+            if (i != items.length - 1) const Divider(height: 18),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _TransactionRow extends StatelessWidget {
+  const _TransactionRow({
+    required this.expense,
+    required this.currency,
+    required this.isMock,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final Expense expense;
+  final String currency;
+  final bool isMock;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final category = categoryByName(expense.category);
+
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Container(
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          color: category.color.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(category.icon, color: category.color),
+      ),
+      title: Text(expense.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle: Text('${expense.category} • ${_formatDate(expense.date)}'),
+      trailing: isMock
+          ? Text(
+              '$currency ${expense.amount.toStringAsFixed(2)}',
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            )
+          : Wrap(
+              spacing: 2,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(
+                  '$currency ${expense.amount.toStringAsFixed(2)}',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                IconButton(
+                  tooltip: 'Edit',
+                  onPressed: onEdit,
+                  icon: const Icon(Icons.edit_outlined),
+                ),
+                IconButton(
+                  tooltip: 'Delete',
+                  onPressed: onDelete,
+                  icon: const Icon(Icons.delete_outline),
+                ),
+              ],
+            ),
+    );
+  }
+}
+
+class _WeeklySpending extends StatelessWidget {
+  const _WeeklySpending({required this.expenses, required this.currency});
+
+  final List<Expense> expenses;
+  final String currency;
+
+  @override
+  Widget build(BuildContext context) {
+    final values = _weeklyTotals(expenses);
+    final maxValue = values.reduce((a, b) => a > b ? a : b);
+
+    return _Panel(
+      title: 'Weekly spending',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '$currency ${values.fold<double>(0, (sum, value) => sum + value).toStringAsFixed(2)} this week',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 120,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                for (var i = 0; i < values.length; i++)
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: _WeeklyBar(
+                        value: values[i],
+                        maxValue: maxValue == 0 ? 1 : maxValue,
+                        label: const ['M', 'T', 'W', 'T', 'F', 'S', 'S'][i],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WeeklyBar extends StatelessWidget {
+  const _WeeklyBar({
+    required this.value,
+    required this.maxValue,
+    required this.label,
+  });
+
+  final double value;
+  final double maxValue;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final heightFactor = (value / maxValue).clamp(0.12, 1.0);
+
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        Expanded(
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 350),
+              height: 92 * heightFactor,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.bottomCenter,
+                  end: Alignment.topCenter,
+                  colors: [colorScheme.primary, colorScheme.tertiary],
+                ),
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(label, style: Theme.of(context).textTheme.labelSmall),
+      ],
+    );
+  }
+}
+
+class _Panel extends StatelessWidget {
+  const _Panel({required this.child, this.title});
+
+  final Widget child;
+  final String? title;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withValues(alpha: 0.08),
+            blurRadius: 20,
+            spreadRadius: 1,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (title != null) ...[
+            Text(
+              title!,
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 12),
+          ],
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+Map<String, double> _totalsByCategory(List<Expense> expenses) {
+  final totals = <String, double>{};
+  for (final expense in expenses) {
+    totals.update(
+      expense.category,
+      (value) => value + expense.amount,
+      ifAbsent: () => expense.amount,
+    );
+  }
+  return totals;
+}
+
+List<double> _weeklyTotals(List<Expense> expenses) {
+  if (expenses.isEmpty) {
+    return [42, 88, 55, 120, 74, 96, 38];
+  }
+
+  final now = DateTime.now();
+  final start = DateTime(
+    now.year,
+    now.month,
+    now.day,
+  ).subtract(Duration(days: now.weekday - 1));
+  final values = List<double>.filled(7, 0);
+
+  for (final expense in expenses) {
+    final day = DateTime(
+      expense.date.year,
+      expense.date.month,
+      expense.date.day,
+    );
+    final index = day.difference(start).inDays;
+    if (index >= 0 && index < 7) {
+      values[index] += expense.amount;
+    }
+  }
+
+  return values.every((value) => value == 0)
+      ? [28, 64, 36, 90, 52, 76, 30]
+      : values;
+}
+
+double _mockAmount(String category) {
+  return switch (category) {
+    'Food' => 320,
+    'Transport' => 115,
+    'Shopping' => 260,
+    'Entertainment' => 140,
+    _ => 90,
+  };
+}
+
+List<Expense> _mockTransactions() {
+  final now = DateTime.now();
+
+  return [
+    Expense(
+      id: -1,
+      title: 'Coffee and lunch',
+      amount: 18.40,
+      category: 'Food',
+      date: now,
+    ),
+    Expense(
+      id: -2,
+      title: 'Metro card',
+      amount: 12.00,
+      category: 'Transport',
+      date: now.subtract(const Duration(days: 1)),
+    ),
+    Expense(
+      id: -3,
+      title: 'Cinema night',
+      amount: 24.90,
+      category: 'Entertainment',
+      date: now.subtract(const Duration(days: 2)),
+    ),
+  ];
+}
+
+String _formatDate(DateTime date) {
+  final month = date.month.toString().padLeft(2, '0');
+  final day = date.day.toString().padLeft(2, '0');
+  return '$day.$month.${date.year}';
 }

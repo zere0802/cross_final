@@ -24,6 +24,8 @@ class ExpenseCard extends ConsumerWidget {
 
     return Card(
       clipBehavior: Clip.antiAlias,
+      elevation: 3,
+      shadowColor: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.12),
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(
@@ -35,7 +37,7 @@ class ExpenseCard extends ConsumerWidget {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: category.color.withOpacity(0.15),
+                    color: category.color.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(category.icon, color: category.color),
@@ -77,10 +79,7 @@ class ExpenseCard extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 4),
-            Text(
-              _formatDate(expense.date),
-              style: textTheme.bodySmall,
-            ),
+            Text(_formatDate(expense.date), style: textTheme.bodySmall),
           ],
         ),
       ),

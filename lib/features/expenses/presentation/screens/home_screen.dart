@@ -233,8 +233,7 @@ class _CategorySummary extends StatelessWidget {
             spacing: 10,
             runSpacing: 10,
             children: entries.map((category) {
-              final amount =
-                  totals[category.name] ?? _mockAmount(category.name);
+              final amount = totals[category.name] ?? 0;
 
               return SizedBox(
                 width: itemWidth,
@@ -242,7 +241,6 @@ class _CategorySummary extends StatelessWidget {
                   category: category,
                   amount: amount,
                   currency: currency,
-                  isMock: expenses.isEmpty,
                 ),
               );
             }).toList(),
@@ -258,13 +256,11 @@ class _CategoryChip extends StatelessWidget {
     required this.category,
     required this.amount,
     required this.currency,
-    required this.isMock,
   });
 
   final AppCategory category;
   final double amount;
   final String currency;
-  final bool isMock;
 
   @override
   Widget build(BuildContext context) {
@@ -288,7 +284,7 @@ class _CategoryChip extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
-                  '$currency ${amount.toStringAsFixed(0)}${isMock ? ' plan' : ''}',
+                  '$currency ${amount.toStringAsFixed(0)}',
                   style: Theme.of(context).textTheme.labelMedium,
                 ),
               ],
@@ -315,24 +311,27 @@ class _RecentTransactions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final items = expenses.isEmpty ? _mockTransactions() : expenses;
-
     return _Panel(
       title: 'Recent transactions',
-      child: Column(
-        children: [
-          for (var i = 0; i < items.length; i++) ...[
-            _TransactionRow(
-              expense: items[i],
-              currency: currency,
-              isMock: expenses.isEmpty,
-              onEdit: () => onEdit(items[i]),
-              onDelete: () => onDelete(items[i]),
+      child: expenses.isEmpty
+          ? const _EmptyPanelMessage(
+              icon: Icons.receipt_long_outlined,
+              title: 'No transactions yet',
+              subtitle: 'Added expenses will appear here.',
+            )
+          : Column(
+              children: [
+                for (var i = 0; i < expenses.length; i++) ...[
+                  _TransactionRow(
+                    expense: expenses[i],
+                    currency: currency,
+                    onEdit: () => onEdit(expenses[i]),
+                    onDelete: () => onDelete(expenses[i]),
+                  ),
+                  if (i != expenses.length - 1) const Divider(height: 18),
+                ],
+              ],
             ),
-            if (i != items.length - 1) const Divider(height: 18),
-          ],
-        ],
-      ),
     );
   }
 }
@@ -341,14 +340,12 @@ class _TransactionRow extends StatelessWidget {
   const _TransactionRow({
     required this.expense,
     required this.currency,
-    required this.isMock,
     required this.onEdit,
     required this.onDelete,
   });
 
   final Expense expense;
   final String currency;
-  final bool isMock;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
@@ -369,31 +366,26 @@ class _TransactionRow extends StatelessWidget {
       ),
       title: Text(expense.title, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text('${expense.category} • ${_formatDate(expense.date)}'),
-      trailing: isMock
-          ? Text(
-              '$currency ${expense.amount.toStringAsFixed(2)}',
-              style: const TextStyle(fontWeight: FontWeight.w800),
-            )
-          : Wrap(
-              spacing: 2,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                Text(
-                  '$currency ${expense.amount.toStringAsFixed(2)}',
-                  style: const TextStyle(fontWeight: FontWeight.w800),
-                ),
-                IconButton(
-                  tooltip: 'Edit',
-                  onPressed: onEdit,
-                  icon: const Icon(Icons.edit_outlined),
-                ),
-                IconButton(
-                  tooltip: 'Delete',
-                  onPressed: onDelete,
-                  icon: const Icon(Icons.delete_outline),
-                ),
-              ],
-            ),
+      trailing: Wrap(
+        spacing: 2,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Text(
+            '$currency ${expense.amount.toStringAsFixed(2)}',
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+          IconButton(
+            tooltip: 'Edit',
+            onPressed: onEdit,
+            icon: const Icon(Icons.edit_outlined),
+          ),
+          IconButton(
+            tooltip: 'Delete',
+            onPressed: onDelete,
+            icon: const Icon(Icons.delete_outline),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -460,7 +452,7 @@ class _WeeklyBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final heightFactor = (value / maxValue).clamp(0.12, 1.0);
+    final heightFactor = value == 0 ? 0.0 : (value / maxValue).clamp(0.12, 1.0);
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.end,
@@ -532,6 +524,61 @@ class _Panel extends StatelessWidget {
   }
 }
 
+class _EmptyPanelMessage extends StatelessWidget {
+  const _EmptyPanelMessage({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: colorScheme.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: colorScheme.primary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 Map<String, double> _totalsByCategory(List<Expense> expenses) {
   final totals = <String, double>{};
   for (final expense in expenses) {
@@ -545,10 +592,6 @@ Map<String, double> _totalsByCategory(List<Expense> expenses) {
 }
 
 List<double> _weeklyTotals(List<Expense> expenses) {
-  if (expenses.isEmpty) {
-    return [42, 88, 55, 120, 74, 96, 38];
-  }
-
   final now = DateTime.now();
   final start = DateTime(
     now.year,
@@ -569,47 +612,7 @@ List<double> _weeklyTotals(List<Expense> expenses) {
     }
   }
 
-  return values.every((value) => value == 0)
-      ? [28, 64, 36, 90, 52, 76, 30]
-      : values;
-}
-
-double _mockAmount(String category) {
-  return switch (category) {
-    'Food' => 320,
-    'Transport' => 115,
-    'Shopping' => 260,
-    'Entertainment' => 140,
-    _ => 90,
-  };
-}
-
-List<Expense> _mockTransactions() {
-  final now = DateTime.now();
-
-  return [
-    Expense(
-      id: -1,
-      title: 'Coffee and lunch',
-      amount: 18.40,
-      category: 'Food',
-      date: now,
-    ),
-    Expense(
-      id: -2,
-      title: 'Metro card',
-      amount: 12.00,
-      category: 'Transport',
-      date: now.subtract(const Duration(days: 1)),
-    ),
-    Expense(
-      id: -3,
-      title: 'Cinema night',
-      amount: 24.90,
-      category: 'Entertainment',
-      date: now.subtract(const Duration(days: 2)),
-    ),
-  ];
+  return values;
 }
 
 String _formatDate(DateTime date) {

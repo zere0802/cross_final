@@ -14,12 +14,8 @@ class StatisticsScreen extends ConsumerWidget {
     final expenses = ref.watch(expenseProvider);
     final currency = ref.watch(currencyProvider);
     final totals = _totalsByCategory(expenses);
-    final chartTotals = totals.isEmpty ? _mockTotals() : totals;
-    final total = chartTotals.values.fold<double>(
-      0,
-      (sum, value) => sum + value,
-    );
-    final sortedEntries = chartTotals.entries.toList()
+    final total = totals.values.fold<double>(0, (sum, value) => sum + value);
+    final sortedEntries = totals.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
     return Scaffold(
@@ -50,7 +46,6 @@ class StatisticsScreen extends ConsumerWidget {
                         entries: sortedEntries,
                         total: total,
                         currency: currency,
-                        isMock: expenses.isEmpty,
                       ),
                     ],
                   ),
@@ -106,7 +101,7 @@ class _StatsHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  isMock ? 'Responsive analytics preview' : 'Monthly overview',
+                  isMock ? 'No spending yet' : 'Monthly overview',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: colorScheme.onPrimary,
                   ),
@@ -142,74 +137,80 @@ class _PieChartPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return _Panel(
       title: 'Category split',
-      child: SizedBox(
-        height: 230,
-        child: Row(
-          children: [
-            Expanded(
-              child: PieChart(
-                PieChartData(
-                  centerSpaceRadius: 46,
-                  sectionsSpace: 3,
-                  sections: entries.take(6).map((entry) {
-                    final category = categoryByName(entry.key);
-                    final percent = total == 0
-                        ? 0.0
-                        : entry.value / total * 100;
+      child: entries.isEmpty
+          ? const _EmptyAnalyticsMessage(
+              icon: Icons.pie_chart_outline,
+              title: 'No category data',
+              subtitle: 'Add expenses to build the pie chart.',
+            )
+          : SizedBox(
+              height: 230,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: PieChart(
+                      PieChartData(
+                        centerSpaceRadius: 46,
+                        sectionsSpace: 3,
+                        sections: entries.take(6).map((entry) {
+                          final category = categoryByName(entry.key);
+                          final percent = total == 0
+                              ? 0.0
+                              : entry.value / total * 100;
 
-                    return PieChartSectionData(
-                      value: entry.value,
-                      color: category.color,
-                      radius: 64,
-                      title: '${percent.toStringAsFixed(0)}%',
-                      titleStyle: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 12,
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            SizedBox(
-              width: 150,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: entries.take(5).map((entry) {
-                  final category = categoryByName(entry.key);
-
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 5),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 10,
-                          height: 10,
-                          decoration: BoxDecoration(
+                          return PieChartSectionData(
+                            value: entry.value,
                             color: category.color,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            category.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
+                            radius: 64,
+                            title: '${percent.toStringAsFixed(0)}%',
+                            titleStyle: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
+                            ),
+                          );
+                        }).toList(),
+                      ),
                     ),
-                  );
-                }).toList(),
+                  ),
+                  const SizedBox(width: 12),
+                  SizedBox(
+                    width: 150,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: entries.take(5).map((entry) {
+                        final category = categoryByName(entry.key);
+
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 5),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 10,
+                                height: 10,
+                                decoration: BoxDecoration(
+                                  color: category.color,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  category.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -290,11 +291,19 @@ class _WeeklyBarChart extends StatelessWidget {
                       toY: values[i],
                       width: 18,
                       borderRadius: BorderRadius.circular(8),
-                      gradient: LinearGradient(
-                        begin: Alignment.bottomCenter,
-                        end: Alignment.topCenter,
-                        colors: [colorScheme.primary, colorScheme.tertiary],
-                      ),
+                      color: values[i] == 0
+                          ? colorScheme.outlineVariant.withValues(alpha: 0.55)
+                          : null,
+                      gradient: values[i] == 0
+                          ? null
+                          : LinearGradient(
+                              begin: Alignment.bottomCenter,
+                              end: Alignment.topCenter,
+                              colors: [
+                                colorScheme.primary,
+                                colorScheme.tertiary,
+                              ],
+                            ),
                     ),
                   ],
                 ),
@@ -311,31 +320,35 @@ class _CategoryBreakdown extends StatelessWidget {
     required this.entries,
     required this.total,
     required this.currency,
-    required this.isMock,
   });
 
   final List<MapEntry<String, double>> entries;
   final double total;
   final String currency;
-  final bool isMock;
 
   @override
   Widget build(BuildContext context) {
     return _Panel(
-      title: isMock ? 'Projected category summaries' : 'Category summaries',
-      child: Column(
-        children: [
-          for (var i = 0; i < entries.length; i++) ...[
-            _CategoryStatTile(
-              category: categoryByName(entries[i].key),
-              amount: entries[i].value,
-              currency: currency,
-              percent: total == 0 ? 0 : entries[i].value / total,
+      title: 'Category summaries',
+      child: entries.isEmpty
+          ? const _EmptyAnalyticsMessage(
+              icon: Icons.insights_outlined,
+              title: 'No summaries yet',
+              subtitle: 'Category summaries are calculated from your expenses.',
+            )
+          : Column(
+              children: [
+                for (var i = 0; i < entries.length; i++) ...[
+                  _CategoryStatTile(
+                    category: categoryByName(entries[i].key),
+                    amount: entries[i].value,
+                    currency: currency,
+                    percent: total == 0 ? 0 : entries[i].value / total,
+                  ),
+                  if (i != entries.length - 1) const SizedBox(height: 12),
+                ],
+              ],
             ),
-            if (i != entries.length - 1) const SizedBox(height: 12),
-          ],
-        ],
-      ),
     );
   }
 }
@@ -427,6 +440,61 @@ class _Panel extends StatelessWidget {
   }
 }
 
+class _EmptyAnalyticsMessage extends StatelessWidget {
+  const _EmptyAnalyticsMessage({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 18),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: colorScheme.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: colorScheme.primary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 Map<String, double> _totalsByCategory(List<Expense> expenses) {
   final totals = <String, double>{};
   for (final expense in expenses) {
@@ -439,22 +507,7 @@ Map<String, double> _totalsByCategory(List<Expense> expenses) {
   return totals;
 }
 
-Map<String, double> _mockTotals() {
-  return const {
-    'Food': 420,
-    'Shopping': 310,
-    'Transport': 160,
-    'Entertainment': 135,
-    'Bills': 280,
-    'Health': 95,
-  };
-}
-
 List<double> _weeklyTotals(List<Expense> expenses) {
-  if (expenses.isEmpty) {
-    return [48, 92, 64, 128, 70, 104, 42];
-  }
-
   final now = DateTime.now();
   final start = DateTime(
     now.year,
@@ -475,7 +528,5 @@ List<double> _weeklyTotals(List<Expense> expenses) {
     }
   }
 
-  return values.every((value) => value == 0)
-      ? [32, 58, 44, 86, 50, 72, 36]
-      : values;
+  return values;
 }
